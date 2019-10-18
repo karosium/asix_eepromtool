@@ -10,8 +10,8 @@ Read and write onboard config EEPROM on USB ethernet adapters based on ASIX chip
 * AX88772A
 * AX88772B
 * AX88178
-* AS88172
-* AS8817X
+* AX88172
+* AX8817X
 
 Tested on AX88772B but should work on the rest. No driver support needed.
                                                     
