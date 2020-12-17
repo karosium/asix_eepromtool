@@ -20,6 +20,12 @@ Why?
 
 * Change VID/PID, MAC address, etc.
 
+It's not changing?
+------------------
+
+ * It's been [confirmed](https://github.com/karosium/asix_eepromtool/issues/1) that some chips ignore VID/PID bytes in the eeprom completely. This is likely because ASIX chips have an eFuse block to set VID/PID/MAC permanently and some manufacturers use it to make their products more tamper-resistant. If you change both instances of the VID/PID bytes in the eeprom and the chip is ignoring them then it's probably one of those.
+
+
 How?
 ----
 
