@@ -61,7 +61,11 @@ int OpenDeviceVIDPID(unsigned int vid,unsigned int pid){
 		printf("libusb_init() failed: %s\n", libusb_error_name(status));
 		exit(0);
 	}
-	libusb_set_debug(NULL, 0);
+	#if defined(LIBUSB_API_VERSION) && (LIBUSB_API_VERSION >= 0x01000106)
+		libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL, 0);
+	#else
+		libusb_set_debug(NULL, 0);
+	#endif
 	
 	device = libusb_open_device_with_vid_pid(NULL, (uint16_t)vid, (uint16_t)pid);
 		if (device == NULL) {
