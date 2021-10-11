@@ -4,6 +4,8 @@
 
  <github@karosium.e4ward.com>
 
+ Extended by Albin Söderqvist <albin.soderqvist@hostmobility.com>
+
 - UNLICENSE -
 
 This is free and unencumbered software released into the public domain.
@@ -52,28 +54,120 @@ For more information, please refer to <http://unlicense.org/>
 static libusb_device *dev, **devs;
 static libusb_device_handle *device = NULL;
 
+static int open_device(int bus, int devnum, unsigned int vid, unsigned int pid)
+{
+	int i = 0;
+	int last_bus = 0;
+	int last_device = 0;
+	int status = libusb_init(NULL);
+	ssize_t cnt;
+	struct libusb_device_descriptor desc;
+	unsigned char serial_number[100];
 
-int OpenDeviceVIDPID(unsigned int vid,unsigned int pid){
-	int status;
-
-	status = libusb_init(NULL);
 	if (status < 0) {
-		printf("libusb_init() failed: %s\n", libusb_error_name(status));
-		exit(0);
+		fprintf(stderr, "failed to initialize libusb");
+		return status;
 	}
-	#if defined(LIBUSB_API_VERSION) && (LIBUSB_API_VERSION >= 0x01000106)
-		libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL, 0);
-	#else
-		libusb_set_debug(NULL, 0);
-	#endif
-	
-	device = libusb_open_device_with_vid_pid(NULL, (uint16_t)vid, (uint16_t)pid);
+#if defined(LIBUSB_API_VERSION) && (LIBUSB_API_VERSION >= 0x01000106)
+	libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL, 0);
+#else
+	libusb_set_debug(NULL, 0);
+#endif
+
+	cnt = libusb_get_device_list(NULL, &devs);
+	if (cnt < 0) {
+		libusb_exit(NULL);
+		return (int) cnt;
+	}
+
+	if (bus && devnum) {
+		/* Find the last bus matching vid and pid */
+		if (bus < 0) {
+			while ((dev = devs[i++]) != NULL) {
+				status = libusb_get_device_descriptor(dev, &desc);
+				if (status < 0) {
+					fprintf(stderr, "failed to get device descriptor");
+					return status;
+				}
+				if (desc.idVendor == vid
+				    && desc.idProduct == pid
+				    && libusb_get_bus_number(dev) > last_bus) {
+					last_bus = libusb_get_bus_number(dev);
+				}
+			}
+			if (last_bus > 0) {
+				bus = last_bus;
+				i = 0;
+			} else {
+				fprintf(stderr, "failed to get a valid address on bus %d", bus);
+				return -1;
+			}
+		}
+		/* Find the last device on the bus matching vid and pid */
+		if (devnum < 0) {
+			while ((dev = devs[i++]) != NULL) {
+				status = libusb_get_device_descriptor(dev, &desc);
+				if (status < 0) {
+					fprintf(stderr, "failed to get device descriptor");
+					return status;
+				}
+
+				if (desc.idVendor == vid
+				    && desc.idProduct == pid
+				    && libusb_get_bus_number(dev) == bus
+				    && libusb_get_device_address(dev) > last_device) {
+					last_device = libusb_get_device_address(dev);
+				}
+			}
+			if (last_device > 0) {
+				devnum = last_device;
+				i = 0;
+			} else {
+				fprintf(stderr, "failed to get a valid address on bus %d", bus);
+				return -1;
+			}
+		}
+		/* Find the device matching vid, pid, bus and device number */
+		while ((dev = devs[i++]) != NULL) {
+			status = libusb_get_device_descriptor(dev, &desc);
+			if (status < 0) {
+				fprintf(stderr, "failed to get device descriptor");
+				return status;
+			}
+			if (desc.idVendor == vid
+			    && desc.idProduct == pid
+			    && libusb_get_bus_number(dev) == bus
+			    && libusb_get_device_address(dev) == devnum) {
+				printf("Accessing bus %d, device %d, vid:pid %04x:%04x",
+				       libusb_get_bus_number(dev), libusb_get_device_address(dev),
+				       desc.idVendor, desc.idProduct);
+				break;
+			}
+		}
+		if (dev == NULL || libusb_get_device_address(dev) != devnum) {
+			fprintf(stderr, "Could not find USB device %d\n", devnum);
+			exit(1);
+		}
+		status = libusb_open(dev, &device);
+		if (status) {
+			printf("\nlibusb_open() failed. Is device connected? Are you root?\n");
+			exit(0);
+		}
+	} else {
+		device = libusb_open_device_with_vid_pid(NULL, (uint16_t)vid, (uint16_t)pid);
 		if (device == NULL) {
 			printf("libusb_open() failed. Is device connected? Are you root?\n");
 			exit(0);
-		}	
+		}
+	}
 
-	libusb_set_auto_detach_kernel_driver(device, 1);
+	status = libusb_get_string_descriptor_ascii(device, desc.iSerialNumber, serial_number, 100);
+	if (status > 0) {
+		printf(", serial number %s\n", serial_number);
+	} else {
+		printf("\n");
+	}
+	libusb_detach_kernel_driver(device, 0);
 	status = libusb_claim_interface(device, 0);
 	if (status != LIBUSB_SUCCESS) {
 		libusb_close(device);
@@ -166,12 +260,14 @@ void printUsage() {
 	  printHeader();
 	  printf("options:\n");
 	  printf("--device=<vid:pid> -d  <vid:pid>        =   vid and pid of device in hex eg. 0b95:772b\n");
+	  printf("--bus=<bus> -b  <bus>                   =   bus number, e.g. 2 or -1 to select the last\n");
+	  printf("--device-number=<n> -n  <n>             =   device number, e.g. 4 or -1 to select the last\n");
 	  printf("--read=<file> ,  -r <file>              =   save the eeprom contents to <file>\n");
 	  printf("--write=<file> ,   -w <file>            =   write <file> to eeprom\n");
-	  printf("--size=<# of bytes> , -s <# of bytes>   =   size of eeprom in bytes (probably 256)\n");
+	  printf("--size=<# of bytes> , -s <# of bytes>   =   size of eeprom in bytes (e.g. 256 or 512)\n");
 	  printf("\n");
 	  printf("example:\n");
-	  printf("asix_eepromtool -d 0b95:772b -r eep.bin -s 256\n");
+	  printf("asix_eepromtool -d 0b95:772b -b 2 -n 10 -r eep.bin -s 256\n");
 	  printf("\n");
 	  printf("ps. Run this tool as root\n");
 }
@@ -182,6 +278,8 @@ int main(int argc, char **argv) {
 	int status;
 	uint8_t eepbuf[65536];
 	int c;
+	int devnum = 0;
+	int bus = 0;
 	uint16_t vid = 0;
 	uint16_t pid = 0;
 	uint16_t eepsize = 0;
@@ -197,6 +295,8 @@ int main(int argc, char **argv) {
 	static struct option long_options[] =
         {
           {"device",  required_argument, 0, 'd'},
+          {"bus",  required_argument, 0, 'b'},
+          {"device-number",  required_argument, 0, 'n'},
           {"read",  required_argument, 0, 'r'},
           {"write",    required_argument, 0, 'w'},
           {"size",    required_argument, 0, 's'},
@@ -208,7 +308,7 @@ int main(int argc, char **argv) {
 
 	      int option_index = 0;
 
-	      c = getopt_long (argc, argv, "d:r:w:s:",
+	      c = getopt_long (argc, argv, "d:b:n:r:w:s:",
                        long_options, &option_index);
 
 	      if (c == -1)
@@ -219,6 +319,22 @@ int main(int argc, char **argv) {
 	        case 0:
 	          if (long_options[option_index].flag != 0)
 	            break;
+
+		case 'b':
+			bus = atoi(optarg);
+			if (bus < -1) {
+				printUsage();
+				exit(1);
+			}
+			break;
+
+		case 'n':
+			devnum = atoi(optarg);
+			if (devnum < -1) {
+				printUsage();
+				exit(1);
+			}
+			break;
 
         	case 'd':
 			tmp = strtok(optarg,":");
@@ -271,7 +387,12 @@ int main(int argc, char **argv) {
         printf("Device is %04X:%04X\n",vid,pid);
 	printf("EEPROM is %d bytes\n",eepsize);
 
-	status = OpenDeviceVIDPID(vid,pid);
+	if (bus && devnum) {
+		printf("Bus %d, device %d\n", bus, devnum);
+	}
+	printf("EEPROM is %d bytes\n",eepsize);
+
+	status = open_device(bus,devnum,vid,pid);
 
 	if (status!=0) {
 		printf("Device open error %d\n",status);
