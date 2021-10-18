@@ -151,13 +151,13 @@ static int open_device(int bus, int devnum, unsigned int vid, unsigned int pid)
 		status = libusb_open(dev, &device);
 		if (status) {
 			printf("\nlibusb_open() failed. Is device connected? Are you root?\n");
-			exit(0);
+			exit(1);
 		}
 	} else {
 		device = libusb_open_device_with_vid_pid(NULL, (uint16_t)vid, (uint16_t)pid);
 		if (device == NULL) {
 			printf("libusb_open() failed. Is device connected? Are you root?\n");
-			exit(0);
+			exit(1);
 		}
 	}
 
@@ -173,7 +173,7 @@ static int open_device(int bus, int devnum, unsigned int vid, unsigned int pid)
 	if (status != LIBUSB_SUCCESS) {
 		libusb_close(device);
 		printf("libusb_claim_interface failed: %s\n", libusb_error_name(status));
-		exit(0);
+		exit(1);
 	}
 
 	return status;
@@ -355,28 +355,28 @@ int main(int argc, char **argv)
 			exit(0);
 			break;
 	        default:
-			abort;
+			exit(1);
 	        }
 	}
 
 	print_header();
 	if ((vid == 0) | (pid == 0)) {
 		printf("Device VID:PID missing or wrong format\n");
-		exit(0);
+		exit(1);
 	}
 	if (eepsize == 0) {
 		printf("EEPROM size not specified\n");
-		exit(0);
+		exit(1);
 	}
 
 	if ((readFile == NULL) && (writeFile == NULL)) {
 		printf("Read/write filename not specified or file open error\n");
-		exit(0);
+		exit(1);
 	}
 
 	if (eepsize %2 != 0) {
 		printf("EEPROM size must be a multiple of 2\n");
-		exit(0);
+		exit(1);
 	}
 
         printf("Device is %04X:%04X\n", vid, pid);
@@ -390,7 +390,7 @@ int main(int argc, char **argv)
 
 	if (status != 0) {
 		printf("Device open error %d\n",status);
-		exit(0);
+		exit(1);
 	} else {
 		printf("Device opened\n");
 	}
