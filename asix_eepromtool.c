@@ -260,13 +260,14 @@ void printUsage() {
 	  printHeader();
 	  printf("options:\n");
 	  printf("--device=<vid:pid> -d  <vid:pid>        =   vid and pid of device in hex eg. 0b95:772b\n");
-	  printf("--bus=<bus> -b  <bus>                   =   bus number, e.g. 2 or -1 to select the last\n");
-	  printf("--device-number=<n> -n  <n>             =   device number, e.g. 4 or -1 to select the last\n");
+	  printf("--bus=<bus> -b  <bus>                   =   (optional) bus number, e.g. 2 or -1 to select the last\n");
+	  printf("--device-number=<n> -n  <n>             =   (optional) device number, e.g. 4 or -1 to select the last\n");
 	  printf("--read=<file> ,  -r <file>              =   save the eeprom contents to <file>\n");
 	  printf("--write=<file> ,   -w <file>            =   write <file> to eeprom\n");
 	  printf("--size=<# of bytes> , -s <# of bytes>   =   size of eeprom in bytes (e.g. 256 or 512)\n");
 	  printf("\n");
 	  printf("example:\n");
+	  printf("asix_eepromtool -d 0b95:772b -r eep.bin -s 256\n");
 	  printf("asix_eepromtool -d 0b95:772b -b 2 -n 10 -r eep.bin -s 256\n");
 	  printf("\n");
 	  printf("ps. Run this tool as root\n");
@@ -390,7 +391,6 @@ int main(int argc, char **argv) {
 	if (bus && devnum) {
 		printf("Bus %d, device %d\n", bus, devnum);
 	}
-	printf("EEPROM is %d bytes\n",eepsize);
 
 	status = open_device(bus,devnum,vid,pid);
 
